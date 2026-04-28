@@ -49,7 +49,10 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
         Status::Loading => frame.render_widget(Paragraph::new(format!("Loading follows for '{}'", app.input)), chunks[0]),
         Status::Loaded(channels) => {
             let items: Vec<ListItem> = channels.iter()
-                .map(|c| ListItem::new(c.display_name.as_str()))
+                .map(|c| {
+                    let name = if c.display_name.is_ascii() { &c.display_name } else { &c.login };
+                    ListItem::new(name.as_str())
+                })
                 .collect();
 
             let list = List::new(items)
