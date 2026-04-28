@@ -48,16 +48,16 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
     match &app.status {
         Status::Idle => {}
         Status::LoadingFollows => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [ ] Follower counts\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [ ] Follows fetched\n  [ ] Follower counts\n  [ ] Mutuals", app.input
         )), chunks[0]),
         Status::LoadingDetails => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [ ] Follower counts\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [X] Follows fetched\n  [ ] Follower counts\n  [ ] Mutuals", app.input
         )), chunks[0]),
         Status::LoadingDates => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [X] Follows fetched\n  [X] Follower counts\n  [ ] Mutuals", app.input
         )), chunks[0]),
         Status::LoadingMutuals => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [X] Follows fetched\n  [X] Follower counts\n  [X] Mutuals", app.input
         )), chunks[0]),
         Status::Loaded(channels) => {
             let rows: Vec<Row> = channels.iter()
@@ -68,7 +68,7 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
                         None => "-".to_string(),
                     };
                     let followed_at = c.followed_at.as_deref()
-                        .map(|d| &d[..10])
+                        //.map(|d| &d[..10])
                         .unwrap_or("-");
                     let mutual_cell = if c.is_mutual {
                         Cell::from(Line::from("mutual").alignment(Alignment::Center))
@@ -88,12 +88,12 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
             let header = Row::new(vec![
                 Cell::from("Name"),
                 Cell::from("Followers"),
-                Cell::from("Followed"),
+                Cell::from("Followed Since (UTC)"),
                 Cell::from(""),
             ])
                 .style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED));
 
-            let table = Table::new(rows, [Constraint::Length(30), Constraint::Length(12), Constraint::Length(12), Constraint::Length(8)])
+            let table = Table::new(rows, [Constraint::Length(30), Constraint::Length(12), Constraint::Length(20), Constraint::Length(8)])
                 .header(header)
                 .block(Block::default().borders(Borders::ALL).title(format!("{}'s Following ({} results)", app.input, channels.len())))
                 .row_highlight_style(Style::default().add_modifier(Modifier::BOLD))
