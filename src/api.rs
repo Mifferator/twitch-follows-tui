@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::models::{Channel, ChannelFollowsData, GqlResponse};
+use crate::models::{Channel, ChannelAvatarData, ChannelFollowsData, GqlResponse};
 
 const TWITCH_GQL: &str = "https://gql.twitch.tv/gql";
 const TWITCH_INTEGRITY: &str = "https://gql.twitch.tv/integrity";
@@ -33,6 +33,12 @@ struct ChannelFollowsVars<'a> {
     limit: u32,
     order: &'static str,
     cursor: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+struct ChannelAvatarVars<'a> {
+    #[serde(rename = "channelLogin")]
+    channel_login: &'a str,
 }
 
 fn random_device_id() -> String {
@@ -115,5 +121,44 @@ pub async fn fetch_follows(
         }
     }
 
+    fetch_follower_counts(client, &integrity_token, &device_id, &mut channels).await?;
+
     Ok(channels)
+}
+
+async fn fetch_follower_counts(
+    client: &reqwest::Client,
+    integrity_token: &str,
+    device_id: &str,
+    channels: &mut Vec<Channel>,
+) -> anyhow::Result<()> {
+    for chunk in channels.chunks_mut(35) {
+        let body: Vec<_> = chunk.iter().map(|c| GqlRequest {
+            operation_name: "ChannelAvatar",
+            variables: ChannelAvatarVars { channel_login: &c.login },
+            extensions: Extensions {
+                persisted_query: PersistedQuery {
+                    version: 1,
+                    sha256_hash: "db0e7b54c5e75fcf7874cafca2dacde646344cbbd1a80a2488a7953176c87a68",
+                },
+            },
+        }).collect();
+
+        let resp: Vec<GqlResponse<ChannelAvatarData>> = client
+            .post(TWITCH_GQL)
+            .header("Client-Id", CLIENT_ID)
+            .header("Client-Integrity", integrity_token)
+            .header("X-Device-Id", device_id)
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        for (channel, r) in chunk.iter_mut().zip(resp) {
+            channel.follower_count = r.data.user.map(|u| u.followers.total_count);
+        }
+    }
+
+    Ok(())
 }

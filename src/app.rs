@@ -1,5 +1,5 @@
 use crate::models::Channel;
-use ratatui::widgets::ListState;
+use ratatui::widgets::TableState;
 
 pub enum Status {
     Loading,
@@ -16,7 +16,7 @@ pub struct App {
     pub page: Page,
     pub status: Status,
     pub input: String,
-    pub list_state: ListState,
+    pub table_state: TableState,
 }
 
 impl App {
@@ -25,7 +25,7 @@ impl App {
             page: Page::EnterName,
             status: Status::Loading,
             input: String::new(),
-            list_state: ListState::default(),
+            table_state: TableState::default(),
         }
     }
 
@@ -34,15 +34,15 @@ impl App {
     }
 
     pub fn set_channels(&mut self, channels: Vec<Channel>) {
-        self.list_state.select(Some(0));
+        self.table_state.select(Some(0));
         self.status = Status::Loaded(channels);
     }
 
     pub fn next(&mut self) {
-        self.list_state.select_next();
+        self.table_state.select_next();
     }
 
     pub fn previous(&mut self) {
-        self.list_state.select_previous();
+        self.table_state.select_previous();
     }
 }

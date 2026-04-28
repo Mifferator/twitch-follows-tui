@@ -2,7 +2,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Paragraph, Row, Table, Cell},
 };
 use crate::app::{App, Status};
 
@@ -48,19 +48,27 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
     match &app.status {
         Status::Loading => frame.render_widget(Paragraph::new(format!("Loading follows for '{}'", app.input)), chunks[0]),
         Status::Loaded(channels) => {
-            let items: Vec<ListItem> = channels.iter()
+            let rows: Vec<Row> = channels.iter()
                 .map(|c| {
                     let name = if c.display_name.is_ascii() { &c.display_name } else { &c.login };
-                    ListItem::new(name.as_str())
+                    let followers = match c.follower_count {
+                        Some(n) => n.to_string(),
+                        None => "-".to_string(),
+                    };
+                    Row::new(vec![Cell::from(name.as_str()), Cell::from(followers)])
                 })
                 .collect();
 
-            let list = List::new(items)
+            let header = Row::new(vec![Cell::from("Name"), Cell::from("Followers")])
+                .style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED));
+
+            let table = Table::new(rows, [Constraint::Length(30), Constraint::Length(12)])
+                .header(header)
                 .block(Block::default().borders(Borders::ALL).title(format!("{}'s Following", app.input)))
                 .highlight_style(Style::default().add_modifier(Modifier::BOLD))
                 .highlight_symbol("> ");
 
-            frame.render_stateful_widget(list, chunks[0], &mut app.list_state);
+            frame.render_stateful_widget(table, chunks[0], &mut app.table_state);
         }
         Status::Error(e) => frame.render_widget(Paragraph::new(format!("Error: {e}")), chunks[0]),
     }

@@ -33,6 +33,23 @@ pub struct Channel {
     pub login: String,
     #[serde(rename = "displayName")]
     pub display_name: String,
+    pub follower_count: Option<u32>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ChannelAvatarData {
+    pub user: Option<ChannelAvatarUser>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ChannelAvatarUser {
+    pub followers: FollowerCount,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FollowerCount {
+    #[serde(rename = "totalCount")]
+    pub total_count: u32,
 }
 
 #[derive(Deserialize, Debug)]

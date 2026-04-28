@@ -72,7 +72,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyh
                             KeyCode::Up | KeyCode::Char('k') => app.previous(),
                             KeyCode::Enter => {
                                 if let app::Status::Loaded(channels) = &app.status {
-                                    if let Some(i) = app.list_state.selected() {
+                                    if let Some(i) = app.table_state.selected() {
                                         let url = format!("https://twitch.tv/{}", channels[i].login);
                                         open::that(url).ok();
                                     }
@@ -80,7 +80,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyh
                             }
                             KeyCode::Char('c') => {
                                 if let app::Status::Loaded(channels) = &app.status {
-                                    if let Some(i) = app.list_state.selected() {
+                                    if let Some(i) = app.table_state.selected() {
                                         let login = channels[i].login.clone();
                                         let next_input = login.clone();
                                         let tx = tx.clone();
