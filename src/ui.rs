@@ -48,16 +48,16 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
     match &app.status {
         Status::Idle => {}
         Status::LoadingFollows => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [ ] Follower counts\n  [ ] Follow dates\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [ ] Follower counts\n  [ ] Mutuals", app.input
         )), chunks[0]),
         Status::LoadingDetails => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [ ] Follower counts\n  [ ] Follow dates\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [ ] Follower counts\n  [ ] Mutuals", app.input
         )), chunks[0]),
         Status::LoadingDates => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [ ] Follow dates\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [ ] Mutuals", app.input
         )), chunks[0]),
         Status::LoadingMutuals => frame.render_widget(Paragraph::new(format!(
-            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [✓] Follow dates\n  [ ] Mutuals", app.input
+            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [ ] Mutuals", app.input
         )), chunks[0]),
         Status::Loaded(channels) => {
             let rows: Vec<Row> = channels.iter()

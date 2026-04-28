@@ -23,11 +23,24 @@ pub struct User {
 
 #[derive(Deserialize, Debug)]
 pub struct FollowConnection {
+    #[serde(rename = "totalCount")]
+    pub total_count: u32,
+    #[serde(rename = "pageInfo")]
+    pub page_info: PageInfo,
     pub edges: Vec<FollowEdge>,
 }
 
 #[derive(Deserialize, Debug)]
+pub struct PageInfo {
+    #[serde(rename = "hasNextPage")]
+    pub has_next_page: bool,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct FollowEdge {
+    pub cursor: String,
+    #[serde(rename = "followedAt")]
+    pub followed_at: String,
     pub node: Channel,
 }
 
@@ -36,10 +49,27 @@ pub struct Channel {
     pub login: String,
     #[serde(rename = "displayName")]
     pub display_name: String,
+    #[serde(rename = "profileImageURL")]
+    pub profile_image_url: Option<String>,
+    pub stream: Option<Stream>,
+    #[serde(default)]
     pub follower_count: Option<u32>,
+    #[serde(default)]
     pub followed_at: Option<String>,
     #[serde(default)]
     pub is_mutual: bool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Stream {
+    pub game: Option<Game>,
+    #[serde(rename = "viewersCount")]
+    pub viewers_count: u32,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Game {
+    pub name: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -73,4 +103,3 @@ pub struct FollowerCount {
     #[serde(rename = "totalCount")]
     pub total_count: u32,
 }
-

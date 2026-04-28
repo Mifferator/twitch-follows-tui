@@ -6,9 +6,52 @@ use crate::models::{Channel, ChannelAvatarData, ChannelFollowsData, FollowedAtDa
 
 const TWITCH_GQL: &str = "https://gql.twitch.tv/gql";
 const TWITCH_INTEGRITY: &str = "https://gql.twitch.tv/integrity";
+
+// Used for the follows query
+const FOLLOWS_CLIENT_ID: &str = "p9lhq6azjkdl72hs5xnt3amqu7vv8k2";
+const FOLLOWS_USER_AGENT: &str = "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1";
+
+// Used for supplementary queries (follower counts, mutuals)
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const ORIGIN: &str = "https://www.twitch.tv";
+
+const GET_FOLLOWING_QUERY: &str = "
+query getFollowing($userLogin: String!, $cursor: Cursor) {
+  user(login: $userLogin) {
+    follows(first: 100, after: $cursor) {
+      totalCount
+      pageInfo { hasNextPage }
+      edges {
+        cursor
+        followedAt
+        node {
+          login
+          displayName
+          profileImageURL(width: 150)
+          stream {
+            game { name }
+            viewersCount
+          }
+        }
+      }
+    }
+  }
+}";
+
+#[derive(Serialize)]
+struct InlineGqlRequest<V: Serialize> {
+    query: &'static str,
+    variables: V,
+}
+
+#[derive(Serialize)]
+struct GetFollowingVars<'a> {
+    #[serde(rename = "userLogin")]
+    user_login: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cursor: Option<&'a str>,
+}
 
 #[derive(Serialize)]
 struct RawGqlRequest {
@@ -34,13 +77,6 @@ struct PersistedQuery {
     version: u32,
     #[serde(rename = "sha256Hash")]
     sha256_hash: &'static str,
-}
-
-#[derive(Serialize)]
-struct ChannelFollowsVars<'a> {
-    login: &'a str,
-    limit: u32,
-    order: &'static str,
 }
 
 #[derive(Serialize)]
@@ -91,48 +127,52 @@ async fn fetch_follows_inner(
     login: &str,
     tx: &mpsc::Sender<Status>,
 ) -> anyhow::Result<()> {
+    let mut channels: Vec<Channel> = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    loop {
+        let body = InlineGqlRequest {
+            query: GET_FOLLOWING_QUERY,
+            variables: GetFollowingVars {
+                user_login: login,
+                cursor: cursor.as_deref(),
+            },
+        };
+
+        let mut resp: Vec<GqlResponse<ChannelFollowsData>> = client
+            .post(TWITCH_GQL)
+            .header("Client-Id", FOLLOWS_CLIENT_ID)
+            .header("User-Agent", FOLLOWS_USER_AGENT)
+            .json(&[body])
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let follows = match resp.remove(0).data.user.and_then(|u| u.follows) {
+            Some(f) => f,
+            None => break,
+        };
+
+        let has_next = follows.page_info.has_next_page;
+        cursor = follows.edges.last().map(|e| e.cursor.clone());
+
+        for edge in follows.edges {
+            let mut channel = edge.node;
+            channel.followed_at = Some(edge.followed_at);
+            channels.push(channel);
+        }
+
+        if !has_next {
+            break;
+        }
+    }
+
     let device_id = random_device_id();
     let integrity_token = fetch_integrity_token(client, &device_id).await?;
 
-    let body = vec![GqlRequest {
-        operation_name: "ChannelFollows",
-        variables: ChannelFollowsVars {
-            login,
-            limit: 100,
-            order: "DESC",
-        },
-        extensions: Extensions {
-            persisted_query: PersistedQuery {
-                version: 1,
-                sha256_hash: "eecf815273d3d949e5cf0085cc5084cd8a1b5b7b6f7990cf43cb0beadf546907",
-            },
-        },
-    }];
-
-    let mut resp: Vec<GqlResponse<ChannelFollowsData>> = client
-        .post(TWITCH_GQL)
-        .header("Client-Id", CLIENT_ID)
-        .header("Client-Integrity", &integrity_token)
-        .header("X-Device-Id", &device_id)
-        .header("User-Agent", USER_AGENT)
-        .header("Origin", ORIGIN)
-        .header("Referer", ORIGIN)
-        .json(&body)
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    let mut channels: Vec<Channel> = resp.remove(0).data.user
-        .and_then(|u| u.follows)
-        .map(|f| f.edges.into_iter().map(|e| e.node).collect())
-        .unwrap_or_default();
-
     tx.send(Status::LoadingDetails).ok();
     fetch_follower_counts(client, &integrity_token, &device_id, &mut channels).await?;
-
-    tx.send(Status::LoadingDates).ok();
-    fetch_followed_at(client, &integrity_token, &device_id, login, &mut channels).await?;
 
     tx.send(Status::LoadingMutuals).ok();
     fetch_mutuals(client, &integrity_token, &device_id, login, &mut channels).await?;
@@ -172,45 +212,6 @@ async fn fetch_follower_counts(
 
         for (channel, r) in chunk.iter_mut().zip(resp) {
             channel.follower_count = r.data.user.map(|u| u.followers.total_count);
-        }
-    }
-
-    Ok(())
-}
-
-async fn fetch_followed_at(
-    client: &reqwest::Client,
-    integrity_token: &str,
-    device_id: &str,
-    login: &str,
-    channels: &mut Vec<Channel>,
-) -> anyhow::Result<()> {
-    for chunk in channels.chunks_mut(35) {
-        let body: Vec<_> = chunk.iter().map(|c| RawGqlRequest {
-            query: format!(
-                r#"{{ user(login: "{}") {{ follow(targetLogin: "{}") {{ followedAt }} }} }}"#,
-                login, c.login
-            ),
-        }).collect();
-
-        let resp: Vec<GqlResponse<FollowedAtData>> = client
-            .post(TWITCH_GQL)
-            .header("Client-Id", CLIENT_ID)
-            .header("Client-Integrity", integrity_token)
-            .header("X-Device-Id", device_id)
-            .header("User-Agent", USER_AGENT)
-            .header("Origin", ORIGIN)
-            .header("Referer", ORIGIN)
-            .json(&body)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        for (channel, r) in chunk.iter_mut().zip(resp) {
-            channel.followed_at = r.data.user
-                .and_then(|u| u.follow)
-                .map(|f| f.followed_at);
         }
     }
 
