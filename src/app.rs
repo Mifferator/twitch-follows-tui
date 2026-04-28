@@ -2,14 +2,18 @@ use crate::models::Channel;
 use ratatui::widgets::TableState;
 
 pub enum Status {
-    Loading,
+    Idle,
+    LoadingFollows,
+    LoadingDetails,
+    LoadingDates,
+    LoadingMutuals,
     Loaded(Vec<Channel>),
     Error(anyhow::Error),
 }
 
 pub enum Page {
     EnterName,
-    ListView
+    ListView,
 }
 
 pub struct App {
@@ -23,13 +27,14 @@ impl App {
     pub fn new() -> Self {
         Self {
             page: Page::EnterName,
-            status: Status::Loading,
+            status: Status::Idle,
             input: String::new(),
             table_state: TableState::default(),
         }
     }
 
     pub fn submit(&mut self) {
+        self.status = Status::LoadingFollows;
         self.page = Page::ListView;
     }
 

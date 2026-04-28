@@ -1,7 +1,8 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::Line,
     widgets::{Block, Borders, Paragraph, Row, Table, Cell},
 };
 use crate::app::{App, Status};
@@ -24,14 +25,13 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 
 
 fn draw_enter_name(frame: &mut Frame, app: &App) {
-    let area = centered_rect(40, 20, frame.area());
+    let area = centered_rect(30, 20, frame.area());
 
     let input = Paragraph::new(app.input.as_str())
         .block(Block::default().borders(Borders::ALL).title("Twitch username"));
 
     frame.render_widget(input, area);
 
-    // place the cursor after the last typed character
     frame.set_cursor_position((
         area.x + app.input.len() as u16 + 1,
         area.y + 1,
@@ -46,7 +46,19 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
         .split(frame.area());
     
     match &app.status {
-        Status::Loading => frame.render_widget(Paragraph::new(format!("Loading follows for '{}'", app.input)), chunks[0]),
+        Status::Idle => {}
+        Status::LoadingFollows => frame.render_widget(Paragraph::new(format!(
+            "Fetching follows for '{}'...\n\n  [ ] Follower counts\n  [ ] Follow dates\n  [ ] Mutuals", app.input
+        )), chunks[0]),
+        Status::LoadingDetails => frame.render_widget(Paragraph::new(format!(
+            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [ ] Follower counts\n  [ ] Follow dates\n  [ ] Mutuals", app.input
+        )), chunks[0]),
+        Status::LoadingDates => frame.render_widget(Paragraph::new(format!(
+            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [ ] Follow dates\n  [ ] Mutuals", app.input
+        )), chunks[0]),
+        Status::LoadingMutuals => frame.render_widget(Paragraph::new(format!(
+            "Fetching follows for '{}'...\n\n  [✓] Follows fetched\n  [✓] Follower counts\n  [✓] Follow dates\n  [ ] Mutuals", app.input
+        )), chunks[0]),
         Status::Loaded(channels) => {
             let rows: Vec<Row> = channels.iter()
                 .map(|c| {
@@ -55,17 +67,36 @@ fn draw_list_view(frame: &mut Frame, app: &mut App) {
                         Some(n) => n.to_string(),
                         None => "-".to_string(),
                     };
-                    Row::new(vec![Cell::from(name.as_str()), Cell::from(followers)])
+                    let followed_at = c.followed_at.as_deref()
+                        .map(|d| &d[..10])
+                        .unwrap_or("-");
+                    let mutual_cell = if c.is_mutual {
+                        Cell::from(Line::from("mutual").alignment(Alignment::Center))
+                            .style(Style::default().fg(Color::Black).bg(Color::Green))
+                    } else {
+                        Cell::from("")
+                    };
+                    Row::new(vec![
+                        Cell::from(name.as_str()),
+                        Cell::from(followers),
+                        Cell::from(followed_at),
+                        mutual_cell,
+                    ])
                 })
                 .collect();
 
-            let header = Row::new(vec![Cell::from("Name"), Cell::from("Followers")])
+            let header = Row::new(vec![
+                Cell::from("Name"),
+                Cell::from("Followers"),
+                Cell::from("Followed"),
+                Cell::from(""),
+            ])
                 .style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED));
 
-            let table = Table::new(rows, [Constraint::Length(30), Constraint::Length(12)])
+            let table = Table::new(rows, [Constraint::Length(30), Constraint::Length(12), Constraint::Length(12), Constraint::Length(8)])
                 .header(header)
-                .block(Block::default().borders(Borders::ALL).title(format!("{}'s Following", app.input)))
-                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                .block(Block::default().borders(Borders::ALL).title(format!("{}'s Following ({} results)", app.input, channels.len())))
+                .row_highlight_style(Style::default().add_modifier(Modifier::BOLD))
                 .highlight_symbol("> ");
 
             frame.render_stateful_widget(table, chunks[0], &mut app.table_state);

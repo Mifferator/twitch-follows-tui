@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod api;
 mod app;
 mod models;
@@ -30,16 +32,16 @@ async fn main() -> anyhow::Result<()> {
 
 async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<()> {
     let mut app = app::App::new();
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = mpsc::channel::<app::Status>();
     let client = reqwest::Client::new();
 
     loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
-        if let Ok(result) = rx.try_recv() {
-            match result {
-                Ok(channels) => app.set_channels(channels),
-                Err(e) => app.status = app::Status::Error(e),
+        if let Ok(status) = rx.try_recv() {
+            match status {
+                app::Status::Loaded(channels) => app.set_channels(channels),
+                other => app.status = other,
             }
         }
 
@@ -55,7 +57,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyh
                                 let tx = tx.clone();
                                 let client = client.clone();
                                 tokio::spawn(async move {
-                                    tx.send(api::fetch_follows(&client, &username).await).ok();
+                                    api::fetch_follows(&client, &username, tx).await;
                                 });
                                 app.submit();
                             }
@@ -86,7 +88,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyh
                                         let tx = tx.clone();
                                         let client = client.clone();
                                         tokio::spawn(async move {
-                                            tx.send(api::fetch_follows(&client, &login).await).ok();
+                                            api::fetch_follows(&client, &login, tx).await;
                                         });
                                         app.input = next_input;
                                         app.submit();

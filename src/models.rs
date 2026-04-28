@@ -3,6 +3,12 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 pub struct GqlResponse<T> {
     pub data: T,
+    pub errors: Option<Vec<GqlError>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct GqlError {
+    pub message: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -18,13 +24,10 @@ pub struct User {
 #[derive(Deserialize, Debug)]
 pub struct FollowConnection {
     pub edges: Vec<FollowEdge>,
-    #[serde(rename = "pageInfo")]
-    pub page_info: PageInfo,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct FollowEdge {
-    pub cursor: String,
     pub node: Channel,
 }
 
@@ -34,6 +37,25 @@ pub struct Channel {
     #[serde(rename = "displayName")]
     pub display_name: String,
     pub follower_count: Option<u32>,
+    pub followed_at: Option<String>,
+    #[serde(default)]
+    pub is_mutual: bool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FollowedAtData {
+    pub user: Option<FollowedAtUser>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FollowedAtUser {
+    pub follow: Option<FollowedAt>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FollowedAt {
+    #[serde(rename = "followedAt")]
+    pub followed_at: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -52,8 +74,3 @@ pub struct FollowerCount {
     pub total_count: u32,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct PageInfo {
-    #[serde(rename = "hasNextPage")]
-    pub has_next_page: bool,
-}
